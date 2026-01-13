@@ -1,4 +1,4 @@
-import { type JsonObject, createJsonlFile } from "./jsonl"
+import { type JsonObject, createJsonlFile } from "./jsonl";
 import { temporaryFileTask } from "./temporaryFileTask";
 import path from "node:path";
 import { promises } from "node:fs";
@@ -23,14 +23,14 @@ export function jsonlDir(dirPath: string) {
                     }
                     if (mutateDb) {
                         // Persistent: append to file
-                        await jsonlFile.appendText(itemsToAdd.map((jsonObject) => JSON.stringify(jsonObject)));
+                        await jsonlFile.appendText(itemsToAdd.map(jsonObject => JSON.stringify(jsonObject)));
                     }
                     return itemsToAdd;
                 },
                 async findOne(matchFn: (data: T) => boolean): Promise<T | undefined> {
                     let found: T | undefined;
                     let canEnd = false;
-                     await jsonlFile.read((batch) => {
+                    await jsonlFile.read(batch => {
                         for (const jsonObject of batch) {
                             if (matchFn(jsonObject)) {
                                 found = jsonObject;
@@ -45,7 +45,7 @@ export function jsonlDir(dirPath: string) {
                 },
                 async find(matchFn: (data: T) => boolean): Promise<T[]> {
                     let found: T[] = [];
-                    await jsonlFile.read((batch) => {
+                    await jsonlFile.read(batch => {
                         for (const jsonObject of batch) {
                             if (matchFn(jsonObject)) {
                                 found.push(jsonObject);
@@ -59,27 +59,30 @@ export function jsonlDir(dirPath: string) {
                     let updated: T[] = [];
                     if (mutateDb) {
                         // Persistent: update temporary file, then replace original
-                        await temporaryFileTask(async (tempPath) => {
-                            const tempFile = createJsonlFile<T>(tempPath);
-                            await jsonlFile.read(async (batch) => {
-                                const processedBatch = batch.map(jsonObject => {
-                                    if (matchFn(jsonObject)) {
-                                        const updatedObject = updateFn(jsonObject);
-                                        updated.push(updatedObject);
-                                        return updatedObject;
-                                    }
-                                    return jsonObject;
+                        await temporaryFileTask(
+                            async tempPath => {
+                                const tempFile = createJsonlFile<T>(tempPath);
+                                await jsonlFile.read(async batch => {
+                                    const processedBatch = batch.map(jsonObject => {
+                                        if (matchFn(jsonObject)) {
+                                            const updatedObject = updateFn(jsonObject);
+                                            updated.push(updatedObject);
+                                            return updatedObject;
+                                        }
+                                        return jsonObject;
+                                    });
+                                    await tempFile.append(processedBatch);
+                                    return false;
                                 });
-                                await tempFile.append(processedBatch);
-                                return false;
-                            });
-                            // Atomic rename: replace original with temp file
-                            await promises.rename(tempPath, filePath);
-                        }, { extension: '.jsonl' });
+                                // Atomic rename: replace original with temp file
+                                await promises.rename(tempPath, filePath);
+                            },
+                            { extension: ".jsonl" }
+                        );
                         return updated;
                     } else {
                         // Non-persistent: just collect and return
-                        await jsonlFile.read((batch) => {
+                        await jsonlFile.read(batch => {
                             for (const jsonObject of batch) {
                                 if (matchFn(jsonObject)) {
                                     updated.push(updateFn(jsonObject));
@@ -94,29 +97,32 @@ export function jsonlDir(dirPath: string) {
                     let kept: T[] = [];
                     if (mutateDb) {
                         // Persistent: update temporary file, then replace original
-                        await temporaryFileTask(async (tempPath) => {
-                            const tempFile = createJsonlFile<T>(tempPath);
-                            await jsonlFile.read(async (batch) => {
-                                const keptBatch = batch.filter(jsonObject => {
-                                    if (!matchFn(jsonObject)) {
-                                        kept.push(jsonObject);
-                                        return true; // keep this item
+                        await temporaryFileTask(
+                            async tempPath => {
+                                const tempFile = createJsonlFile<T>(tempPath);
+                                await jsonlFile.read(async batch => {
+                                    const keptBatch = batch.filter(jsonObject => {
+                                        if (!matchFn(jsonObject)) {
+                                            kept.push(jsonObject);
+                                            return true; // keep this item
+                                        }
+                                        return false; // exclude from kept items
+                                    });
+
+                                    if (keptBatch.length > 0) {
+                                        await tempFile.append(keptBatch);
                                     }
-                                    return false; // exclude from kept items
+                                    return false;
                                 });
-                                
-                                if (keptBatch.length > 0) {
-                                    await tempFile.append(keptBatch);
-                                }
-                                return false;
-                            });
-                            // Atomic rename: replace original with temp file
-                            await promises.rename(tempPath, filePath);
-                        }, { extension: '.jsonl' });
+                                // Atomic rename: replace original with temp file
+                                await promises.rename(tempPath, filePath);
+                            },
+                            { extension: ".jsonl" }
+                        );
                         return kept;
                     } else {
                         // Non-persistent: just collect and return
-                        await jsonlFile.read((batch) => {
+                        await jsonlFile.read(batch => {
                             for (const jsonObject of batch) {
                                 if (!matchFn(jsonObject)) {
                                     kept.push(jsonObject);
@@ -130,9 +136,9 @@ export function jsonlDir(dirPath: string) {
                 async count() {
                     return await jsonlFile.count();
                 }
-            }
+            };
         }
-    }
+    };
 }
 
 function isSingleJson(o: any): o is JsonObject {
